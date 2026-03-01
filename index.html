@@ -359,13 +359,13 @@ async function loadAll() {
 
   try {
     const [kpis, projetos, devs, cfgs, marcos, semanas, modulos] = await Promise.all([
-      fetchSheet('KPIs_Looker'),
-      fetchSheet('📋 Projetos'),
-      fetchSheet('🔧 Desenvolvimentos'),
-      fetchSheet('⚙️ Configurações'),
-      fetchSheet('🏁 Marcos'),
-      fetchSheet('📅 Semanas'),
-      fetchSheet('🗂️ Módulos'),
+      fetchSheet('KPIS Looker'),
+      fetchSheet('Projetos'),
+      fetchSheet('Desenvolvimentos'),
+      fetchSheet('Configuracoes'),
+      fetchSheet('Marcos'),
+      fetchSheet('Semanas'),
+      fetchSheet('Modulos'),
     ]);
 
     DATA = { kpis, projetos, devs, cfgs, marcos, semanas, modulos };
