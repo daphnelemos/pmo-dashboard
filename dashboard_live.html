@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Program Management Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root {
+  --bg: #0a0f1e;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --border: rgba(255,255,255,0.07);
+  --accent: #00e5ff;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --purple: #7c3aed;
+  --text: #e2e8f0;
+  --muted: #64748b;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; min-height:100vh; }
+
+/* HEADER */
+header {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 32px;
+  display:flex; align-items:center; justify-content:space-between;
+  height:64px; position:sticky; top:0; z-index:100;
+}
+.logo { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; display:flex; align-items:center; gap:10px; }
+.logo-dot { width:10px; height:10px; background:var(--accent); border-radius:50%; box-shadow:0 0 12px var(--accent); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.3)} }
+.header-right { display:flex; align-items:center; gap:16px; }
+.live-badge { display:flex; align-items:center; gap:6px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:var(--success); padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+.live-dot { width:6px; height:6px; background:var(--success); border-radius:50%; animation:pulse 1.5s infinite; }
+.refresh-btn { background:rgba(0,229,255,0.1); border:1px solid rgba(0,229,255,0.2); color:var(--accent); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; transition:all .2s; font-family:'DM Sans',sans-serif; }
+.refresh-btn:hover { background:rgba(0,229,255,0.2); }
+.last-update { font-size:12px; color:var(--muted); }
+
+/* TABS */
+nav { background:var(--surface); border-bottom:1px solid var(--border); padding:0 32px; display:flex; gap:4px; overflow-x:auto; }
+.tab { padding:14px 20px; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; border-bottom:2px solid transparent; transition:all .2s; white-space:nowrap; }
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* MAIN */
+main { padding:28px 32px; max-width:1600px; margin:0 auto; }
+.page { display:none; animation:fadeIn .3s ease; }
+.page.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* LOADING */
+.loading-screen {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  height:60vh; gap:16px;
+}
+.spinner { width:40px; height:40px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.loading-text { color:var(--muted); font-size:14px; }
+
+/* ERROR */
+.error-box { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3); border-radius:12px; padding:20px; margin:20px 0; }
+.error-box h3 { color:var(--danger); margin-bottom:8px; }
+.error-box p { color:var(--muted); font-size:13px; line-height:1.6; }
+.error-box code { background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; font-family:monospace; font-size:12px; }
+
+/* KPI GRID */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:16px; margin-bottom:24px; }
+.kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; position:relative; overflow:hidden; transition:transform .2s; }
+.kpi:hover { transform:translateY(-2px); }
+.kpi::after { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+.kpi.blue::after { background:var(--accent); }
+.kpi.green::after { background:var(--success); }
+.kpi.yellow::after { background:var(--warning); }
+.kpi.red::after { background:var(--danger); }
+.kpi.purple::after { background:var(--purple); }
+.kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:10px; }
+.kpi-value { font-family:'Syne',sans-serif; font-size:38px; font-weight:800; line-height:1; }
+.kpi.blue .kpi-value { color:var(--accent); }
+.kpi.green .kpi-value { color:var(--success); }
+.kpi.yellow .kpi-value { color:var(--warning); }
+.kpi.red .kpi-value { color:var(--danger); }
+.kpi.purple .kpi-value { color:#a78bfa; }
+.kpi-sub { font-size:12px; color:var(--muted); margin-top:6px; }
+
+/* GRID */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:24px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:24px; }
+
+/* CARD */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+.card-title { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.card-title::before { content:''; width:3px; height:14px; background:var(--accent); border-radius:2px; }
+
+/* TABLE */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; }
+thead th { text-align:left; padding:10px 12px; font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); border-bottom:1px solid var(--border); white-space:nowrap; }
+tbody tr { border-bottom:1px solid var(--border); transition:background .15s; }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:rgba(255,255,255,0.03); }
+tbody td { padding:10px 12px; font-size:13px; }
+
+/* BADGES */
+.badge { display:inline-flex; align-items:center; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; white-space:nowrap; }
+.badge.green { background:rgba(16,185,129,0.15); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
+.badge.yellow { background:rgba(245,158,11,0.15); color:var(--warning); border:1px solid rgba(245,158,11,0.3); }
+.badge.red { background:rgba(239,68,68,0.15); color:var(--danger); border:1px solid rgba(239,68,68,0.3); }
+.badge.blue { background:rgba(0,229,255,0.1); color:var(--accent); border:1px solid rgba(0,229,255,0.2); }
+.badge.gray { background:rgba(100,116,139,0.15); color:var(--muted); border:1px solid rgba(100,116,139,0.25); }
+.delay-tag { display:inline-block; background:rgba(239,68,68,0.15); color:var(--danger); border:1px solid rgba(239,68,68,0.25); padding:2px 7px; border-radius:4px; font-size:11px; font-weight:700; }
+
+/* PROGRESS */
+.prog-row { margin-bottom:14px; }
+.prog-info { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+.prog-name { font-size:13px; font-weight:500; }
+.prog-pct { font-size:12px; color:var(--muted); }
+.prog-bar { height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden; }
+.prog-fill { height:100%; border-radius:3px; transition:width 1s ease; }
+
+/* FILTER */
+.filter-row { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+.filter-btn { padding:6px 16px; border-radius:20px; border:1px solid var(--border); background:transparent; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:500; cursor:pointer; transition:all .2s; }
+.filter-btn:hover, .filter-btn.active { background:rgba(0,229,255,0.1); border-color:rgba(0,229,255,0.3); color:var(--accent); }
+.filter-select { background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:6px 12px; border-radius:8px; font-family:'DM Sans',sans-serif; font-size:12px; outline:none; }
+
+/* GANTT */
+.gantt-wrap { overflow-x:auto; }
+.gantt-months { display:flex; margin-left:160px; margin-bottom:4px; }
+.gantt-month { flex:1; font-size:10px; color:var(--muted); text-align:center; min-width:40px; }
+.gantt-row-g { display:flex; align-items:center; margin-bottom:8px; }
+.gantt-label { width:160px; font-size:12px; flex-shrink:0; padding-right:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gantt-track { flex:1; height:24px; background:rgba(255,255,255,0.04); border-radius:4px; position:relative; min-width:300px; }
+.gantt-bar { position:absolute; top:4px; height:16px; border-radius:3px; display:flex; align-items:center; padding:0 8px; font-size:10px; font-weight:600; white-space:nowrap; overflow:hidden; }
+
+/* MODULES */
+.module-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:12px; margin-bottom:20px; }
+.module-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px; }
+.module-name { font-size:12px; font-weight:600; margin-bottom:10px; }
+.module-stats { display:flex; justify-content:space-around; }
+.module-stat { text-align:center; }
+.module-stat-val { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; }
+.module-stat-label { font-size:10px; color:var(--muted); }
+
+/* WEEK CHART */
+.week-chart-wrap { overflow-x:auto; padding-bottom:8px; }
+.week-chart { display:flex; align-items:flex-end; gap:10px; height:160px; padding-bottom:24px; position:relative; min-width:500px; }
+.week-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; height:100%; justify-content:flex-end; min-width:50px; }
+.week-bars { display:flex; gap:4px; align-items:flex-end; height:120px; }
+.week-bar { width:18px; border-radius:3px 3px 0 0; position:relative; cursor:pointer; }
+.week-bar:hover::after { content:attr(data-val); position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:var(--surface2); padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; border:1px solid var(--border); }
+.week-label { font-size:10px; color:var(--muted); text-align:center; }
+
+/* EMPTY STATE */
+.empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--surface2); border-radius:3px; }
+
+@media(max-width:900px) {
+  main { padding:16px; }
+  header { padding:0 16px; }
+  nav { padding:0 16px; }
+  .grid-2, .grid-3 { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div>PROGRAM MANAGEMENT</div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <span class="last-update" id="last-update">Carregando...</span>
+    <button class="refresh-btn" onclick="loadAll()">⟳ Atualizar</button>
+  </div>
+</header>
+
+<nav>
+  <div class="tab active" onclick="showTab('overview',this)">📊 Visão Geral</div>
+  <div class="tab" onclick="showTab('roadmap',this)">🗓 Roadmap</div>
+  <div class="tab" onclick="showTab('dev',this)">🔧 Desenvolvimentos</div>
+  <div class="tab" onclick="showTab('cfg',this)">⚙️ Configurações</div>
+  <div class="tab" onclick="showTab('modules',this)">📦 Módulos</div>
+  <div class="tab" onclick="showTab('projects',this)">🏢 Por Projeto</div>
+</nav>
+
+<main>
+  <div id="loading" class="loading-screen">
+    <div class="spinner"></div>
+    <div class="loading-text">Conectando à planilha...</div>
+  </div>
+
+  <!-- VISÃO GERAL -->
+  <div id="overview" class="page">
+    <div class="kpi-grid" id="kpi-grid"></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Progresso por Projeto</div>
+        <div id="proj-progress"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Status dos Desenvolvimentos</div>
+        <div id="dev-status-bars"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Resumo por Projeto</div>
+      <div class="table-wrap">
+        <table id="proj-table">
+          <thead><tr><th>Projeto</th><th>PM</th><th>Fase Atual</th><th>Status</th><th>% Concluído</th><th>DEVs</th><th>CFGs</th><th>Atrasos</th></tr></thead>
+          <tbody id="proj-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROADMAP -->
+  <div id="roadmap" class="page">
+    <div class="card">
+      <div class="card-title">Cronograma dos Projetos</div>
+      <div class="gantt-wrap" id="gantt-wrap"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Marcos e Milestones</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Marco</th><th>Projeto</th><th>Fase</th><th>Data Prevista</th><th>Data Real</th><th>Status</th><th>Variação</th></tr></thead>
+          <tbody id="marcos-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESENVOLVIMENTOS -->
+  <div id="dev" class="page">
+    <div class="kpi-grid" id="dev-kpis"></div>
+    <div class="filter-row">
+      <span style="color:var(--muted);font-size:12px">Filtrar:</span>
+      <button class="filter-btn active" onclick="filterDev('Todos',this)">Todos</button>
+      <button class="filter-btn" onclick="filterDev('Concluído',this)">Concluídos</button>
+      <button class="filter-btn" onclick="filterDev('Em Andamento',this)">Em Andamento</button>
+      <button class="filter-btn" onclick="filterDev('Atrasado',this)">Atrasados</button>
+      <select class="filter-select" id="dev-proj-filter" onchange="filterDevByProject()">
+        <option value="">Todos os Projetos</option>
+      </select>
+    </div>
+    <div class="card">
+      <div class="card-title">Lista de Desenvolvimentos</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Descrição</th><th>Projeto</th><th>Módulo</th><th>Responsável</th><th>Prazo</th><th>Status</th><th>Atraso</th></tr></thead>
+          <tbody id="dev-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIGURAÇÕES -->
+  <div id="cfg" class="page">
+    <div class="kpi-grid" id="cfg-kpis"></div>
+    <div class="filter-row">
+      <span style="color:var(--muted);font-size:12px">Filtrar:</span>
+      <button class="filter-btn active" onclick="filterCfg('Todos',this)">Todos</button>
+      <button class="filter-btn" onclick="filterCfg('Concluída',this)">Concluídas</button>
+      <button class="filter-btn" onclick="filterCfg('Em Andamento',this)">Em Andamento</button>
+      <button class="filter-btn" onclick="filterCfg('Atrasada',this)">Atrasadas</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Lista de Configurações</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Descrição</th><th>Projeto</th><th>Módulo</th><th>Responsável</th><th>Prazo</th><th>Status</th><th>Atraso</th></tr></thead>
+          <tbody id="cfg-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MÓDULOS -->
+  <div id="modules" class="page">
+    <div class="card">
+      <div class="card-title">Itens por Módulo</div>
+      <div class="module-grid" id="module-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Atividades por Semana</div>
+      <div style="display:flex;gap:16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:12px;height:12px;background:var(--accent);border-radius:2px;display:inline-block"></span>Iniciadas</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:12px;height:12px;background:var(--success);border-radius:2px;display:inline-block"></span>Finalizadas</div>
+      </div>
+      <div class="week-chart-wrap"><div class="week-chart" id="week-chart"></div></div>
+    </div>
+  </div>
+
+  <!-- POR PROJETO -->
+  <div id="projects" class="page">
+    <div class="filter-row">
+      <span style="color:var(--muted);font-size:12px">Projeto:</span>
+      <select class="filter-select" id="proj-detail-filter" onchange="renderProjectDetail()">
+        <option value="">Selecione um projeto</option>
+      </select>
+    </div>
+    <div id="project-detail"></div>
+  </div>
+
+</main>
+
+<script>
+const SHEET_ID = '1lXrjHMX4T-025hKpTbIXrzDp3XlOIKeDETY3DGJbh8Q';
+const BASE = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
+
+// Encode sheet names for URL
+const SHEETS = {
+  kpis:    'KPIs_Looker',
+  projetos: encodeURIComponent('📋 Projetos'),
+  devs:    encodeURIComponent('🔧 Desenvolvimentos'),
+  cfgs:    encodeURIComponent('⚙️ Configurações'),
+  marcos:  encodeURIComponent('🏁 Marcos'),
+  semanas: encodeURIComponent('📅 Semanas'),
+  modulos: encodeURIComponent('🗂️ Módulos'),
+};
+
+let DATA = {};
+
+function fetchSheet(sheetName) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(`${BASE}${sheetName}`, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: r => resolve(r.data),
+      error: e => reject(e)
+    });
+  });
+}
+
+async function loadAll() {
+  document.getElementById('loading').style.display = 'flex';
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+
+  try {
+    const [kpis, projetos, devs, cfgs, marcos, semanas, modulos] = await Promise.all([
+      fetchSheet(SHEETS.kpis),
+      fetchSheet(SHEETS.projetos),
+      fetchSheet(SHEETS.devs),
+      fetchSheet(SHEETS.cfgs),
+      fetchSheet(SHEETS.marcos),
+      fetchSheet(SHEETS.semanas),
+      fetchSheet(SHEETS.modulos),
+    ]);
+
+    DATA = { kpis, projetos, devs, cfgs, marcos, semanas, modulos };
+
+    renderAll();
+    document.getElementById('last-update').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
+
+  } catch(e) {
+    document.getElementById('loading').innerHTML = `
+      <div class="error-box" style="max-width:600px">
+        <h3>⚠️ Erro ao conectar com a planilha</h3>
+        <p>Verifique se a planilha está publicada na web. Acesse:<br>
+        <strong>Arquivo → Compartilhar → Publicar na web → Publicar cada aba</strong><br><br>
+        Erro técnico: <code>${e.message || 'Falha na conexão'}</code></p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('overview').classList.add('active');
+  document.getElementById('overview').style.display = 'block';
+}
+
+function renderAll() {
+  renderKPIs();
+  renderProjProgress();
+  renderDevStatusBars();
+  renderProjTable();
+  renderGantt();
+  renderMarcos();
+  renderDevTable();
+  renderCfgTable();
+  renderModules();
+  renderWeekChart();
+  populateProjectFilters();
+}
+
+/* ── STATUS BADGE ── */
+function statusBadge(s) {
+  if(!s) return '';
+  const map = {
+    'No Prazo':'green','Concluído':'green','Concluída':'green',
+    'Em Andamento':'blue','Iniciado':'blue',
+    'Atrasado':'red','Atrasada':'red','Em Risco':'red',
+    'Atenção':'yellow','Planejado':'gray','Não Iniciado':'gray',
+    'Go-Live':'green','Encerrado':'gray'
+  };
+  const cls = map[s] || 'gray';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+
+function progColor(pct) {
+  const n = parseFloat(pct);
+  if(n >= 80) return '#10b981';
+  if(n >= 50) return '#f59e0b';
+  return '#ef4444';
+}
+
+/* ── KPIs ── */
+function renderKPIs() {
+  const k = DATA.kpis[0] || {};
+  const items = [
+    { label:'Projetos Ativos', val: k['Projetos_Ativos']||DATA.projetos.length, cls:'blue', sub:'projetos em andamento' },
+    { label:'DEV Total', val: k['DEV_Total']||DATA.devs.length, cls:'green', sub:`${k['DEV_Concluidos']||0} concluídos` },
+    { label:'DEV Atrasados', val: k['DEV_Atrasados']||0, cls:'red', sub:'requerem atenção' },
+    { label:'CFG Total', val: k['CFG_Total']||DATA.cfgs.length, cls:'purple', sub:`${k['CFG_Concluidas']||0} concluídas` },
+    { label:'CFG Atrasadas', val: k['CFG_Atrasadas']||0, cls:'yellow', sub:'requerem atenção' },
+    { label:'% Conclusão', val: (k['Pct_Conclusao']||0)+'%', cls:'green', sub:'progresso geral' },
+  ];
+  document.getElementById('kpi-grid').innerHTML = items.map(i =>
+    `<div class="kpi ${i.cls}">
+      <div class="kpi-label">${i.label}</div>
+      <div class="kpi-value">${i.val}</div>
+      <div class="kpi-sub">${i.sub}</div>
+    </div>`
+  ).join('');
+}
+
+/* ── PROJ PROGRESS ── */
+function renderProjProgress() {
+  const el = document.getElementById('proj-progress');
+  if(!DATA.projetos.length){ el.innerHTML='<div class="empty">Nenhum projeto encontrado</div>'; return; }
+  el.innerHTML = DATA.projetos.slice(0,8).map(p => {
+    const pct = parseFloat(p['% Concluído']||p['%_Concluido']||p['Pct']||0);
+    const color = progColor(pct);
+    return `<div class="prog-row">
+      <div class="prog-info">
+        <span class="prog-name">${p['Nome do Projeto']||p['Nome_Projeto']||'—'}</span>
+        <span style="display:flex;align-items:center;gap:8px">${statusBadge(p['Status'])} <span style="font-size:12px;font-weight:700;color:${color}">${pct}%</span></span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${color}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+/* ── DEV STATUS BARS ── */
+function renderDevStatusBars() {
+  const el = document.getElementById('dev-status-bars');
+  const total = DATA.devs.length;
+  if(!total){ el.innerHTML='<div class="empty">Nenhum dado</div>'; return; }
+  const count = s => DATA.devs.filter(d => d['Status']===s).length;
+  const conc = count('Concluído'), and = count('Em Andamento'), atr = count('Atrasado');
+  const items = [
+    {label:'Concluídos', val:conc, color:'#10b981'},
+    {label:'Em Andamento', val:and, color:'#00e5ff'},
+    {label:'Atrasados', val:atr, color:'#ef4444'},
+  ];
+  el.innerHTML = items.map(i => `
+    <div class="prog-row">
+      <div class="prog-info"><span>${i.label}</span><span style="font-weight:700;color:${i.color}">${i.val}</span></div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${total?Math.round(i.val/total*100):0}%;background:${i.color}"></div></div>
+    </div>`).join('');
+}
+
+/* ── PROJ TABLE ── */
+function renderProjTable() {
+  const tb = document.getElementById('proj-tbody');
+  if(!DATA.projetos.length){ tb.innerHTML='<tr><td colspan="8" class="empty">Nenhum projeto</td></tr>'; return; }
+  tb.innerHTML = DATA.projetos.map(p => `
+    <tr>
+      <td style="font-weight:600">${p['Nome do Projeto']||p['Nome_Projeto']||'—'}</td>
+      <td>${p['PM Responsável']||p['PM_Responsavel']||'—'}</td>
+      <td>${p['Fase Atual']||p['Fase_Atual']||'—'}</td>
+      <td>${statusBadge(p['Status'])}</td>
+      <td><span style="font-weight:700;color:${progColor(p['% Concluído']||0)}">${p['% Concluído']||p['Pct']||0}%</span></td>
+      <td>${p['Qtd DEV']||p['Qtd_DEV']||'—'}</td>
+      <td>${p['Qtd CFG']||p['Qtd_CFG']||'—'}</td>
+      <td>${parseInt(p['Qtd Atrasos']||p['Qtd_Atrasos']||0)>0 ? `<span class="delay-tag">⚠ ${p['Qtd Atrasos']||p['Qtd_Atrasos']}</span>` : '—'}</td>
+    </tr>`).join('');
+}
+
+/* ── GANTT ── */
+function renderGantt() {
+  const wrap = document.getElementById('gantt-wrap');
+  if(!DATA.projetos.length){ wrap.innerHTML='<div class="empty">Sem dados</div>'; return; }
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const colors = ['#00e5ff','#10b981','#7c3aed','#f59e0b','#ef4444','#0891b2','#f97316','#06b6d4'];
+  const statusColors = {'Atrasado':'#ef4444','Atrasada':'#ef4444','Em Risco':'#ef4444','Atenção':'#f59e0b','No Prazo':'#00e5ff','Concluído':'#10b981'};
+
+  let html = `<div class="gantt-months">${months.map(m=>`<div class="gantt-month">${m}</div>`).join('')}</div>`;
+
+  DATA.projetos.forEach((p,i) => {
+    const nome = p['Nome do Projeto']||p['Nome_Projeto']||'Projeto '+(i+1);
+    const status = p['Status']||'';
+    const color = statusColors[status] || colors[i % colors.length];
+    // Calculate bar position from start date
+    const inicio = p['Data Início']||p['Data_Inicio']||'';
+    const fim = p['Data Fim Prevista']||p['Data_Fim_Prevista']||'';
+    let left = i * 4; // fallback stagger
+    let width = 50;
+    if(inicio) {
+      const d = new Date(inicio.split('/').reverse().join('-'));
+      if(!isNaN(d)) left = Math.max(0, Math.min(92, (d.getMonth()/12)*100));
+    }
+    if(fim) {
+      const d = new Date(fim.split('/').reverse().join('-'));
+      if(!isNaN(d)) width = Math.max(8, Math.min(100-left, ((d.getMonth()+1)/12)*100 - left));
+    }
+    html += `<div class="gantt-row-g">
+      <div class="gantt-label" title="${nome}">${nome}</div>
+      <div class="gantt-track">
+        <div class="gantt-bar" style="left:${left}%;width:${width}%;background:${color};color:${color==='#f59e0b'?'#000':'#fff'}">
+          ${p['Fase Atual']||p['Fase_Atual']||nome} ${status==='Atrasado'||status==='Atrasada'?'⚠':''}
+        </div>
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML = html;
+}
+
+/* ── MARCOS ── */
+function renderMarcos() {
+  const tb = document.getElementById('marcos-tbody');
+  if(!DATA.marcos.length){ tb.innerHTML='<tr><td colspan="7" class="empty">Nenhum marco</td></tr>'; return; }
+  tb.innerHTML = DATA.marcos.map(m => {
+    const var_ = parseInt(m['Dias Variação']||m['Dias_Variacao']||0);
+    return `<tr>
+      <td style="font-weight:600">🏁 ${m['Descrição do Marco']||m['Descricao']||'—'}</td>
+      <td>${m['Nome do Projeto']||m['Projeto']||'—'}</td>
+      <td>${m['Fase']||'—'}</td>
+      <td>${m['Data Prevista']||m['Data_Prevista']||'—'}</td>
+      <td>${m['Data Real']||m['Data_Real']||'—'}</td>
+      <td>${statusBadge(m['Status'])}</td>
+      <td>${var_>0?`<span class="delay-tag">+${var_}d</span>`:'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── DEV TABLE ── */
+let devFilter = 'Todos';
+let devProjFilter = '';
+
+function renderDevTable() {
+  const tb = document.getElementById('dev-tbody');
+  let rows = DATA.devs;
+  if(devFilter !== 'Todos') rows = rows.filter(r => r['Status']===devFilter);
+  if(devProjFilter) rows = rows.filter(r => (r['Nome do Projeto']||r['Nome_Projeto']||'').includes(devProjFilter));
+
+  // DEV KPIs
+  const kpis = [
+    {label:'Total', val:DATA.devs.length, cls:'blue'},
+    {label:'Concluídos', val:DATA.devs.filter(r=>r['Status']==='Concluído').length, cls:'green'},
+    {label:'Em Andamento', val:DATA.devs.filter(r=>r['Status']==='Em Andamento').length, cls:'blue'},
+    {label:'Atrasados', val:DATA.devs.filter(r=>r['Status']==='Atrasado').length, cls:'red'},
+  ];
+  document.getElementById('dev-kpis').innerHTML = kpis.map(k=>
+    `<div class="kpi ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.val}</div></div>`
+  ).join('');
+
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="8" class="empty">Nenhum item encontrado</td></tr>'; return; }
+  tb.innerHTML = rows.map(r => {
+    const atraso = parseInt(r['Dias de Atraso']||r['Dias_Atraso']||0);
+    return `<tr>
+      <td style="font-family:monospace;font-size:11px">${r['ID DEV']||r['ID']||'—'}</td>
+      <td>${r['Descrição do Desenvolvimento']||r['Descricao']||'—'}</td>
+      <td>${r['Nome do Projeto']||r['Projeto']||'—'}</td>
+      <td>${r['Módulo']||r['Modulo']||'—'}</td>
+      <td>${r['Responsável Técnico']||r['Responsavel']||'—'}</td>
+      <td>${r['Data Fim Prevista']||r['Prazo']||'—'}</td>
+      <td>${statusBadge(r['Status'])}</td>
+      <td>${atraso>0?`<span class="delay-tag">+${atraso}d</span>`:'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterDev(status, btn) {
+  devFilter = status;
+  document.querySelectorAll('#dev .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDevTable();
+}
+function filterDevByProject() {
+  devProjFilter = document.getElementById('dev-proj-filter').value;
+  renderDevTable();
+}
+
+/* ── CFG TABLE ── */
+let cfgFilter = 'Todos';
+function renderCfgTable() {
+  const tb = document.getElementById('cfg-tbody');
+  let rows = DATA.cfgs;
+  if(cfgFilter !== 'Todos') rows = rows.filter(r => r['Status']===cfgFilter);
+
+  const kpis = [
+    {label:'Total', val:DATA.cfgs.length, cls:'purple'},
+    {label:'Concluídas', val:DATA.cfgs.filter(r=>r['Status']==='Concluída').length, cls:'green'},
+    {label:'Em Andamento', val:DATA.cfgs.filter(r=>r['Status']==='Em Andamento').length, cls:'blue'},
+    {label:'Atrasadas', val:DATA.cfgs.filter(r=>r['Status']==='Atrasada').length, cls:'red'},
+  ];
+  document.getElementById('cfg-kpis').innerHTML = kpis.map(k=>
+    `<div class="kpi ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.val}</div></div>`
+  ).join('');
+
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="8" class="empty">Nenhum item</td></tr>'; return; }
+  tb.innerHTML = rows.map(r => {
+    const atraso = parseInt(r['Dias de Atraso']||r['Dias_Atraso']||0);
+    return `<tr>
+      <td style="font-family:monospace;font-size:11px">${r['ID CFG']||r['ID']||'—'}</td>
+      <td>${r['Descrição da Configuração']||r['Descricao']||'—'}</td>
+      <td>${r['Nome do Projeto']||r['Projeto']||'—'}</td>
+      <td>${r['Módulo']||r['Modulo']||'—'}</td>
+      <td>${r['Responsável']||r['Responsavel']||'—'}</td>
+      <td>${r['Data Fim Prevista']||r['Prazo']||'—'}</td>
+      <td>${statusBadge(r['Status'])}</td>
+      <td>${atraso>0?`<span class="delay-tag">+${atraso}d</span>`:'—'}</td>
+    </tr>`;
+  }).join('');
+}
+function filterCfg(status, btn) {
+  cfgFilter = status;
+  document.querySelectorAll('#cfg .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCfgTable();
+}
+
+/* ── MODULES ── */
+function renderModules() {
+  const el = document.getElementById('module-grid');
+  // Group DEVs + CFGs by module
+  const mods = {};
+  [...DATA.devs, ...DATA.cfgs].forEach(r => {
+    const mod = r['Módulo']||r['Modulo']||'Outros';
+    if(!mods[mod]) mods[mod] = {total:0, conc:0, atr:0};
+    mods[mod].total++;
+    const s = r['Status']||'';
+    if(s==='Concluído'||s==='Concluída') mods[mod].conc++;
+    if(s==='Atrasado'||s==='Atrasada') mods[mod].atr++;
+  });
+  if(!Object.keys(mods).length){ el.innerHTML='<div class="empty">Sem dados de módulo</div>'; return; }
+  el.innerHTML = Object.entries(mods).map(([mod,d]) => `
+    <div class="module-box">
+      <div class="module-name">📦 ${mod}</div>
+      <div class="module-stats">
+        <div class="module-stat"><div class="module-stat-val" style="color:var(--accent)">${d.total}</div><div class="module-stat-label">Total</div></div>
+        <div class="module-stat"><div class="module-stat-val" style="color:var(--success)">${d.conc}</div><div class="module-stat-label">Conc.</div></div>
+        <div class="module-stat"><div class="module-stat-val" style="color:${d.atr>0?'var(--danger)':'var(--success)'}">${d.atr}</div><div class="module-stat-label">Atraso</div></div>
+      </div>
+    </div>`).join('');
+}
+
+/* ── WEEK CHART ── */
+function renderWeekChart() {
+  const el = document.getElementById('week-chart');
+  if(!DATA.semanas.length){ el.innerHTML='<div class="empty">Sem dados semanais</div>'; return; }
+  const maxVal = Math.max(...DATA.semanas.map(s => Math.max(
+    parseInt(s['Atividades Iniciadas']||s['Iniciadas']||0),
+    parseInt(s['Atividades Finalizadas']||s['Finalizadas']||0)
+  )), 1);
+  el.innerHTML = DATA.semanas.slice(0,12).map(s => {
+    const ini = parseInt(s['Atividades Iniciadas']||s['Iniciadas']||0);
+    const fin = parseInt(s['Atividades Finalizadas']||s['Finalizadas']||0);
+    const hIni = Math.round((ini/maxVal)*100);
+    const hFin = Math.round((fin/maxVal)*100);
+    const sem = s['Sprint/Semana']||s['Semana']||'?';
+    return `<div class="week-col">
+      <div class="week-bars">
+        <div class="week-bar" style="height:${hIni}px;background:var(--accent)" data-val="${ini} iniciadas" title="${ini} iniciadas"></div>
+        <div class="week-bar" style="height:${hFin}px;background:var(--success)" data-val="${fin} finalizadas" title="${fin} finalizadas"></div>
+      </div>
+      <div class="week-label">${sem}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── PROJECT FILTERS ── */
+function populateProjectFilters() {
+  const nomes = [...new Set(DATA.projetos.map(p => p['Nome do Projeto']||p['Nome_Projeto']||'').filter(Boolean))];
+  const sel1 = document.getElementById('dev-proj-filter');
+  const sel2 = document.getElementById('proj-detail-filter');
+  nomes.forEach(n => {
+    sel1.innerHTML += `<option value="${n}">${n}</option>`;
+    sel2.innerHTML += `<option value="${n}">${n}</option>`;
+  });
+}
+
+/* ── PROJECT DETAIL ── */
+function renderProjectDetail() {
+  const nome = document.getElementById('proj-detail-filter').value;
+  const el = document.getElementById('project-detail');
+  if(!nome){ el.innerHTML='<div class="empty" style="padding:60px">Selecione um projeto acima para ver os detalhes</div>'; return; }
+
+  const proj = DATA.projetos.find(p => (p['Nome do Projeto']||p['Nome_Projeto']||'')=== nome);
+  const devs = DATA.devs.filter(d => (d['Nome do Projeto']||d['Projeto']||'').includes(nome.split(' ')[1]||nome));
+  const cfgs = DATA.cfgs.filter(c => (c['Nome do Projeto']||c['Projeto']||'').includes(nome.split(' ')[1]||nome));
+
+  const pct = parseFloat(proj?.['% Concluído']||proj?.['Pct']||0);
+  const color = progColor(pct);
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">${nome}</div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+        <div class="kpi blue"><div class="kpi-label">Fase</div><div class="kpi-value" style="font-size:18px">${proj?.['Fase Atual']||proj?.['Fase_Atual']||'—'}</div></div>
+        <div class="kpi green"><div class="kpi-label">PM</div><div class="kpi-value" style="font-size:16px">${proj?.['PM Responsável']||proj?.['PM']||'—'}</div></div>
+        <div class="kpi blue"><div class="kpi-label">Desenvolvimentos</div><div class="kpi-value">${devs.length}</div></div>
+        <div class="kpi purple"><div class="kpi-label">Configurações</div><div class="kpi-value">${cfgs.length}</div></div>
+      </div>
+      <div class="prog-row">
+        <div class="prog-info"><span>Progresso Geral</span><span style="font-weight:700;color:${color}">${pct}%</span></div>
+        <div class="prog-bar" style="height:10px"><div class="prog-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Desenvolvimentos (${devs.length})</div>
+        <div class="table-wrap">
+          <table><thead><tr><th>ID</th><th>Descrição</th><th>Status</th><th>Atraso</th></tr></thead>
+          <tbody>${devs.length ? devs.map(d => `<tr>
+            <td style="font-family:monospace;font-size:11px">${d['ID DEV']||'—'}</td>
+            <td>${d['Descrição do Desenvolvimento']||d['Descricao']||'—'}</td>
+            <td>${statusBadge(d['Status'])}</td>
+            <td>${parseInt(d['Dias de Atraso']||0)>0?`<span class="delay-tag">+${d['Dias de Atraso']}d</span>`:'—'}</td>
+          </tr>`).join('') : '<tr><td colspan="4" class="empty">Sem desenvolvimentos</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Configurações (${cfgs.length})</div>
+        <div class="table-wrap">
+          <table><thead><tr><th>ID</th><th>Descrição</th><th>Status</th><th>Atraso</th></tr></thead>
+          <tbody>${cfgs.length ? cfgs.map(c => `<tr>
+            <td style="font-family:monospace;font-size:11px">${c['ID CFG']||'—'}</td>
+            <td>${c['Descrição da Configuração']||c['Descricao']||'—'}</td>
+            <td>${statusBadge(c['Status'])}</td>
+            <td>${parseInt(c['Dias de Atraso']||0)>0?`<span class="delay-tag">+${c['Dias de Atraso']}d</span>`:'—'}</td>
+          </tr>`).join('') : '<tr><td colspan="4" class="empty">Sem configurações</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── TAB NAV ── */
+function showTab(id, el) {
+  document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.display='none'; });
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const page = document.getElementById(id);
+  page.classList.add('active');
+  page.style.display = 'block';
+  el.classList.add('active');
+  if(id==='projects') renderProjectDetail();
+}
+
+// Start
+loadAll();
+</script>
+</body>
+</html>
