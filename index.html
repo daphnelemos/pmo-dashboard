@@ -314,30 +314,42 @@ tbody td { padding:10px 12px; font-size:13px; }
 
 <script>
 const SHEET_ID = '1lXrjHMX4T-025hKpTbIXrzDp3XlOIKeDETY3DGJbh8Q';
-const BASE = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=`;
-
-// Encode sheet names for URL
-const SHEETS = {
-  kpis:    'KPIs_Looker',
-  projetos: encodeURIComponent('📋 Projetos'),
-  devs:    encodeURIComponent('🔧 Desenvolvimentos'),
-  cfgs:    encodeURIComponent('⚙️ Configurações'),
-  marcos:  encodeURIComponent('🏁 Marcos'),
-  semanas: encodeURIComponent('📅 Semanas'),
-  modulos: encodeURIComponent('🗂️ Módulos'),
-};
-
 let DATA = {};
+let _cbCount = 0;
 
+// JSONP fetch — bypasses CORS completely, works from any domain
 function fetchSheet(sheetName) {
   return new Promise((resolve, reject) => {
-    Papa.parse(`${BASE}${sheetName}`, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: r => resolve(r.data),
-      error: e => reject(e)
-    });
+    const cbName = '_gs_' + (_cbCount++);
+    const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+      '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName) +
+      '&callback=' + cbName;
+
+    const timer = setTimeout(() => {
+      delete window[cbName];
+      reject(new Error('Timeout: ' + sheetName));
+    }, 20000);
+
+    window[cbName] = function(resp) {
+      clearTimeout(timer);
+      delete window[cbName];
+      try {
+        const cols = resp.table.cols.map(c => c.label || c.id);
+        const rows = (resp.table.rows || []).map(r => {
+          const obj = {};
+          (r.c || []).forEach((cell, i) => {
+            obj[cols[i]] = (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : '';
+          });
+          return obj;
+        });
+        resolve(rows);
+      } catch(e) { reject(e); }
+    };
+
+    const s = document.createElement('script');
+    s.src = url;
+    s.onerror = () => { clearTimeout(timer); reject(new Error('Erro script: ' + sheetName)); };
+    document.head.appendChild(s);
   });
 }
 
@@ -347,28 +359,26 @@ async function loadAll() {
 
   try {
     const [kpis, projetos, devs, cfgs, marcos, semanas, modulos] = await Promise.all([
-      fetchSheet(SHEETS.kpis),
-      fetchSheet(SHEETS.projetos),
-      fetchSheet(SHEETS.devs),
-      fetchSheet(SHEETS.cfgs),
-      fetchSheet(SHEETS.marcos),
-      fetchSheet(SHEETS.semanas),
-      fetchSheet(SHEETS.modulos),
+      fetchSheet('KPIs_Looker'),
+      fetchSheet('📋 Projetos'),
+      fetchSheet('🔧 Desenvolvimentos'),
+      fetchSheet('⚙️ Configurações'),
+      fetchSheet('🏁 Marcos'),
+      fetchSheet('📅 Semanas'),
+      fetchSheet('🗂️ Módulos'),
     ]);
 
     DATA = { kpis, projetos, devs, cfgs, marcos, semanas, modulos };
-
     renderAll();
     document.getElementById('last-update').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
 
   } catch(e) {
-    document.getElementById('loading').innerHTML = `
-      <div class="error-box" style="max-width:600px">
-        <h3>⚠️ Erro ao conectar com a planilha</h3>
-        <p>Verifique se a planilha está publicada na web. Acesse:<br>
-        <strong>Arquivo → Compartilhar → Publicar na web → Publicar cada aba</strong><br><br>
-        Erro técnico: <code>${e.message || 'Falha na conexão'}</code></p>
-      </div>`;
+    document.getElementById('loading').innerHTML =
+      '<div class="error-box" style="max-width:600px">' +
+      '<h3>⚠️ Erro ao conectar com a planilha</h3>' +
+      '<p>Certifique-se que a planilha está publicada na web:<br>' +
+      '<strong>Arquivo → Compartilhar → Publicar na web → Documento inteiro → Publicar</strong><br><br>' +
+      'Erro: <code>' + (e.message || 'Falha') + '</code></p></div>';
     return;
   }
 
