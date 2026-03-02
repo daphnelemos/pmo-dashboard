@@ -22,7 +22,7 @@
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; min-height:100vh; }
-  
+
 /* HEADER */
 header {
   background:var(--surface);
@@ -315,41 +315,19 @@ tbody td { padding:10px 12px; font-size:13px; }
 <script>
 const SHEET_ID = '1lXrjHMX4T-025hKpTbIXrzDp3XlOIKeDETY3DGJbh8Q';
 let DATA = {};
-let _cbCount = 0;
 
-// JSONP fetch — bypasses CORS completely, works from any domain
+// Fetch CSV via PapaParse — works from GitHub Pages with public sheet
 function fetchSheet(sheetName) {
+  const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(sheetName);
   return new Promise((resolve, reject) => {
-    const cbName = '_gs_' + (_cbCount++);
-    const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-      '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName) +
-      '&callback=' + cbName;
-
-    const timer = setTimeout(() => {
-      delete window[cbName];
-      reject(new Error('Timeout: ' + sheetName));
-    }, 20000);
-
-    window[cbName] = function(resp) {
-      clearTimeout(timer);
-      delete window[cbName];
-      try {
-        const cols = resp.table.cols.map(c => c.label || c.id);
-        const rows = (resp.table.rows || []).map(r => {
-          const obj = {};
-          (r.c || []).forEach((cell, i) => {
-            obj[cols[i]] = (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : '';
-          });
-          return obj;
-        });
-        resolve(rows);
-      } catch(e) { reject(e); }
-    };
-
-    const s = document.createElement('script');
-    s.src = url;
-    s.onerror = () => { clearTimeout(timer); reject(new Error('Erro script: ' + sheetName)); };
-    document.head.appendChild(s);
+    Papa.parse(url, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: r => resolve(r.data),
+      error: e => reject(new Error('Erro ao carregar: ' + sheetName))
+    });
   });
 }
 
