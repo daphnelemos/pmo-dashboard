@@ -316,35 +316,40 @@ tbody td { padding:10px 12px; font-size:13px; }
 const SHEET_ID = '1lXrjHMX4T-025hKpTbIXrzDp3XlOIKeDETY3DGJbh8Q';
 let DATA = {};
 
-// Fetch CSV via PapaParse — works from GitHub Pages with public sheet
-function fetchSheet(sheetName) {
+// Fetch usando fetch() nativo — mais confiável com Google Sheets público
+async function fetchSheet(sheetName) {
   const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(sheetName);
-  return new Promise((resolve, reject) => {
-    Papa.parse(url, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: r => resolve(r.data),
-      error: e => reject(new Error('Erro ao carregar: ' + sheetName))
-    });
-  });
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('Erro HTTP ' + resp.status + ': ' + sheetName);
+  const text = await resp.text();
+  const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+  return result.data;
 }
+
+// Aguarda entre requisições para não sobrecarregar o Google
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function loadAll() {
   document.getElementById('loading').style.display = 'flex';
   document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
 
   try {
-    const [kpis, projetos, devs, cfgs, marcos, semanas, modulos] = await Promise.all([
-      fetchSheet('KPIS Looker'),
-      fetchSheet('Projetos'),
-      fetchSheet('Desenvolvimentos'),
-      fetchSheet('Configurações'),
-      fetchSheet('Marcos'),
-      fetchSheet('Semanas'),
-      fetchSheet('Módulos'),
-    ]);
+    // Carrega sequencialmente para evitar bloqueio do Google
+    document.querySelector('.loading-text').textContent = 'Carregando KPIs...';
+    const kpis = await fetchSheet('KPIS Looker'); await sleep(300);
+    document.querySelector('.loading-text').textContent = 'Carregando Projetos...';
+    const projetos = await fetchSheet('Projetos'); await sleep(300);
+    document.querySelector('.loading-text').textContent = 'Carregando Desenvolvimentos...';
+    const devs = await fetchSheet('Desenvolvimentos'); await sleep(300);
+    document.querySelector('.loading-text').textContent = 'Carregando Configurações...';
+    const cfgs = await fetchSheet('Configurações'); await sleep(300);
+    document.querySelector('.loading-text').textContent = 'Carregando Marcos...';
+    const marcos = await fetchSheet('Marcos'); await sleep(300);
+    document.querySelector('.loading-text').textContent = 'Carregando Semanas...';
+    const semanas = await fetchSheet('Semanas'); await sleep(300);
+    document.querySelector('.loading-text').textContent = 'Carregando Módulos...';
+    const modulos = await fetchSheet('Módulos');
 
     DATA = { kpis, projetos, devs, cfgs, marcos, semanas, modulos };
     renderAll();
